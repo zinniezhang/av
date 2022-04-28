@@ -90,10 +90,10 @@ function controller(CMD::Channel,
     clear_dist_back = [lane_margin lane_margin lane_margin]
     clear_speed_front = [max_speed max_speed max_speed]
     clear_speed_back = [max_speed max_speed max_speed]
-    slow_down = 35.0
+    slow_down = 60.0
 
     println("")
-    println("edit4")
+    println("edit1")
     println("")
 
     # 1 is true 0 is false 
@@ -111,23 +111,17 @@ function controller(CMD::Channel,
             x = f.position
             y = ego_meas.position
             dist = sqrt(sum((x - y) .^ 2))
-
             
             f_dist = x - center
             ego_dist = y - center
             θ_fleet = atan(f_dist[1], f_dist[2])
             θ_ego = atan(ego_dist[1], ego_dist[2])
-
             
-            # Find car is close
-            if dist < lane_margin 
-                    # in front
-                if angular_dist(θ_fleet, θ_ego) < 0 && dist < clear_dist_front[f.target_lane] 
-                    clear_dist_front[f.target_lane] = dist
-                    clear_speed_front[f.target_lane] = f.speed
-                end
-                
+            if angular_dist(θ_fleet, θ_ego) < 0 && dist < clear_dist_front[f.target_lane] 
+                clear_dist_front[f.target_lane] = dist
+                clear_speed_front[f.target_lane] = f.speed
             end
+
 
            #=  if dist < lane_margin *1.5
                 # behind
@@ -150,7 +144,7 @@ function controller(CMD::Channel,
             elseif (clear_dist_front[2] == lane_margin) && (clear_dist_back[2] == lane_margin)
                 
                 target_lane = 2
-                V = minimum(clear_speed_front) - slow_down
+                V = min(clear_speed_front[1], clear_speed_front[2]) 
 
             # stay in 1, follow car infront
             else
@@ -166,17 +160,15 @@ function controller(CMD::Channel,
                 V = max_speed
                 target_lane = 2
             
+            # lane 3 clear, switch
+            elseif (clear_dist_front[3] == lane_margin) && (clear_dist_back[3] == lane_margin)
+                target_lane = 3
+                V = min(clear_speed_front[2], clear_speed_front[3]) 
+            
             # lane 1 clear, switch
             elseif (clear_dist_front[1] == lane_margin) && (clear_dist_back[1] == lane_margin)
                 target_lane = 1
-                V = minimum(clear_speed_front) - slow_down
-                println(V)
-            
-            # lane 3 clear, switch
-            elseif  (clear_dist_front[3] == lane_margin) && (clear_dist_back[3] == lane_margin)
-                target_lane = 3
-                V = minimum(clear_speed_front) - slow_down
-                println(V)
+                V = min(clear_speed_front[2], clear_speed_front[1]) 
 
             # stay in 2, follow car infront
             else 
@@ -188,26 +180,27 @@ function controller(CMD::Channel,
         elseif my_lane == 3
             
             # front of lane 3 clear
-            if (clear_dist_front[1] == lane_margin)
+            if (clear_dist_front[3] == lane_margin)
                 V = max_speed
                 target_lane = 3
             
             # lane 2 completely clear, switch
             elseif (clear_dist_front[2] == lane_margin) && (clear_dist_back[2] == lane_margin)
                 target_lane = 2
-                V = minimum(clear_speed_front) - slow_down
-                print("switch to 2", V)
+                V = min(clear_speed_front[3], clear_speed_front[2]) 
 
             # stay in 3, follow car infront
             else
                 V = clear_speed_front[3]
                 target_lane = 3
-                println("stay in 3", V)
-                println("dist front", clear_dist_front[3])
-                println("speed front", clear_speed_front[3])
       
             end
 
+        end
+
+        # slow down when switching
+        if target_lane != my_lane
+            V = V - slow_down
         end
 
         err_1 = V - speed
